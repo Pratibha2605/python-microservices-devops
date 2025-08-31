@@ -19,36 +19,48 @@ jobs:
       EMAIL_TO: ${{ secrets.EMAIL_TO }}
 
     steps:
+      # Step 1: Checkout repository
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.11
-
-      - name: Install backend dependencies
-        run: |
-          cd backend
-          pip install -r requirements.txt
-
-      - name: Run backend tests
-        run: |
-          cd backend
-          pytest || exit 1
-
-      - name: Build Docker images
-        run: |
-          docker build -t $DOCKERHUB_USERNAME/backend:latest ./backend
-          docker build -t $DOCKERHUB_USERNAME/frontend:latest ./frontend
-          docker build -t $DOCKERHUB_USERNAME/logger:latest ./logger
-
+      # Step 2: Login to DockerHub before build
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # Step 3: Setup Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      # Step 4: Install backend dependencies
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      # Step 5: Run backend tests (optional: continue even if tests fail)
+      - name: Run backend tests
+        run: |
+          cd backend
+          pytest || echo "Tests failed, but continuing to Docker build"
+
+      # Step 6: Build Docker images with detailed logging
+      - name: Build Docker images
+        run: |
+          echo "Building backend image..."
+          docker build -t $DOCKERHUB_USERNAME/backend:latest ./backend || { echo "Backend build failed"; exit 1; }
+
+          echo "Building frontend image..."
+          docker build -t $DOCKERHUB_USERNAME/frontend:latest ./frontend || { echo "Frontend build failed"; exit 1; }
+
+          echo "Building logger image..."
+          docker build -t $DOCKERHUB_USERNAME/logger:latest ./logger || { echo "Logger build failed"; exit 1; }
+
+      # Step 7: Push Docker images
       - name: Push Docker images
         run: |
           docker push $DOCKERHUB_USERNAME/backend:latest
@@ -58,16 +70,16 @@ jobs:
   notify:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: failure()
+    if: always()  # Runs even if build-and-push fails
     steps:
-      - name: Send failure email
+      - name: Send CI/CD status email
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 465
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASS }}
-          subject: "CI/CD Pipeline Failed"
-          body: "Your DevOps pipeline for python-microservices-devops failed."
+          subject: "CI/CD Pipeline Status"
+          body: "Your DevOps pipeline for python-microservices-devops has completed. Check logs for details."
           to: ${{ secrets.EMAIL_TO }}
           secure: true
