@@ -1,0 +1,73 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      EMAIL_USER: ${{ secrets.EMAIL_USER }}
+      EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        run: |
+          cd backend
+          pytest || exit 1
+
+      - name: Build Docker images
+        run: |
+          docker build -t $DOCKERHUB_USERNAME/backend:latest ./backend
+          docker build -t $DOCKERHUB_USERNAME/frontend:latest ./frontend
+          docker build -t $DOCKERHUB_USERNAME/logger:latest ./logger
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push Docker images
+        run: |
+          docker push $DOCKERHUB_USERNAME/backend:latest
+          docker push $DOCKERHUB_USERNAME/frontend:latest
+          docker push $DOCKERHUB_USERNAME/logger:latest
+
+  notify:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Send failure email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASS }}
+          subject: "CI/CD Pipeline Failed"
+          body: "Your DevOps pipeline for python-microservices-devops failed."
+          to: ${{ secrets.EMAIL_TO }}
+          secure: true

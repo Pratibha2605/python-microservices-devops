@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python Microservices App</title>
+</head>
+<body>
+    <h1>Welcome to Python Microservices App</h1>
+    <h2>User Data</h2>
+    <ul id="user-list">
+        <li>Loading...</li>
+    </ul>
+
+    <h2>Add a New User</h2>
+    <form id="add-user-form">
+        <input type="text" id="name-input" placeholder="Enter name" required>
+        <button type="submit">Add User</button>
+    </form>
+    
+    <!-- This script makes the page dynamic -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
